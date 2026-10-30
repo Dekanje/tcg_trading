@@ -2,6 +2,12 @@ name: Sync OpenRift market data
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - scripts/sync-openrift-market.mjs
+      - .github/workflows/sync-openrift-market.yml
   schedule:
     - cron: "17 5 * * *"
 
