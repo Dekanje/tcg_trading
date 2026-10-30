@@ -24,19 +24,19 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Fetch OpenRift marketplace data
         run: node scripts/sync-openrift-market.mjs
 
       - name: Commit refreshed CSV
         run: |
-          if git diff --quiet -- data/openrift-market.csv; then
-            echo "No marketplace data changes."
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/openrift-market.csv
+          if git diff --cached --quiet; then
+            echo "No marketplace data changes."
+            exit 0
+          fi
           git commit -m "Refresh OpenRift market data"
           git push
