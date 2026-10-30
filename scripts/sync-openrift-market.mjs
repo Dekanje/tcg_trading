@@ -3,7 +3,9 @@ import path from "node:path";
 
 const API_BASE = "https://openrift.app";
 const USER_AGENT = "ChasingTheRiftMarket/1.0 (https://chasingtherift.com)";
-const OUTPUT_PATH = path.resolve("data/openrift-market.csv");
+const DATA_DIR = path.resolve("data");
+const OUTPUT_PATH = path.join(DATA_DIR, "openrift-market.csv");
+const CHUNK_COUNT = 10;
 
 async function fetchJson(endpoint) {
   const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -87,15 +89,14 @@ for (const [printingId, printing] of Object.entries(catalog.printings ?? {})) {
 
   const printedName = printing.printedName || "";
   const canonicalName = card.name || printedName || "";
-  const cardName = canonicalName;
-  const markers = markerLabels.join(" | ");
+  const markerLabelsText = markerLabels.join(" | ");
   const isPromo = findPromo(printing.markers, markerLabels);
   const isFoil = String(printing.finish ?? "").toLowerCase() === "foil";
 
   rows.push({
     "Printing ID": printingId,
     "Card ID": printing.cardId,
-    "Card Name": cardName,
+    "Card Name": canonicalName,
     "Printed Name": printedName,
     "Card Slug": card.slug ?? "",
     "Short Code": printing.shortCode ?? "",
@@ -106,7 +107,7 @@ for (const [printingId, printing] of Object.entries(catalog.printings ?? {})) {
     Rarity: titleCase(printing.rarity),
     Finish: titleCase(printing.finish),
     "Art Variant": titleCase(printing.artVariant),
-    Markers: markers,
+    Markers: markerLabelsText,
     "Is Promo": isPromo,
     "Is Foil": isFoil,
     "Cardmarket Price EUR": centsToUnits(prices.cardmarket),
@@ -134,7 +135,7 @@ for (const [printingId, printing] of Object.entries(catalog.printings ?? {})) {
       printing.rarity,
       printing.finish,
       printing.artVariant,
-      markers,
+      markerLabelsText,
     ]
       .filter(Boolean)
       .join(" ")
@@ -184,11 +185,25 @@ const headers = [
   "Search Text",
 ];
 
-const csv = [
-  headers.map(csvCell).join(","),
-  ...rows.map((row) => headers.map((header) => csvCell(row[header])).join(",")),
-].join("\n");
+function buildCsv(chunkRows) {
+  return [
+    headers.map(csvCell).join(","),
+    ...chunkRows.map((row) => headers.map((header) => csvCell(row[header])).join(",")),
+  ].join("\n") + "\n";
+}
 
-await fs.mkdir(path.dirname(OUTPUT_PATH), { recursive: true });
-await fs.writeFile(OUTPUT_PATH, `${csv}\n`, "utf8");
-console.log(`Wrote ${rows.length} OpenRift printings to ${OUTPUT_PATH}`);
+await fs.mkdir(DATA_DIR, { recursive: true });
+await fs.writeFile(OUTPUT_PATH, buildCsv(rows), "utf8");
+
+const chunkSize = Math.ceil(rows.length / CHUNK_COUNT);
+for (let i = 0; i < CHUNK_COUNT; i += 1) {
+  const start = i * chunkSize;
+  const end = start + chunkSize;
+  const chunkRows = rows.slice(start, end);
+  const chunkPath = path.join(DATA_DIR, `openrift-market-${String(i + 1).padStart(2, "0")}.csv`);
+  await fs.writeFile(chunkPath, buildCsv(chunkRows), "utf8");
+}
+
+console.log(
+  `Wrote ${rows.length} OpenRift printings to ${OUTPUT_PATH} and ${CHUNK_COUNT} import chunks`,
+);
